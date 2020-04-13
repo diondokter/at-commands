@@ -70,50 +70,12 @@ impl<'a, ANY> CommandBuilder<'a, ANY> {
     }
 }
 
-impl<'a> CommandBuilder<'a, Initialized<Test>> {
-    pub fn named(mut self, name: &str) -> CommandBuilder<'a, Test> {
+impl<'a, N: Nameable> CommandBuilder<'a, Initialized<N>> {
+    pub fn named(mut self, name: &str) -> CommandBuilder<'a, N> {
         self.try_append_data(name.as_bytes());
-        self.try_append_data(b"=?");
+        self.try_append_data(N::NAME_SUFFIX);
 
-        CommandBuilder::<'a, Test> {
-            buffer: self.buffer,
-            index: self.index,
-            phantom: Default::default(),
-        }
-    }
-}
-
-impl<'a> CommandBuilder<'a, Initialized<Query>> {
-    pub fn named(mut self, name: &str) -> CommandBuilder<'a, Query> {
-        self.try_append_data(name.as_bytes());
-        self.try_append_data(b"?");
-
-        CommandBuilder::<'a, Query> {
-            buffer: self.buffer,
-            index: self.index,
-            phantom: Default::default(),
-        }
-    }
-}
-
-impl<'a> CommandBuilder<'a, Initialized<Set>> {
-    pub fn named(mut self, name: &str) -> CommandBuilder<'a, Set> {
-        self.try_append_data(name.as_bytes());
-        self.try_append_data(b"=");
-
-        CommandBuilder::<'a, Set> {
-            buffer: self.buffer,
-            index: self.index,
-            phantom: Default::default(),
-        }
-    }
-}
-
-impl<'a> CommandBuilder<'a, Initialized<Execute>> {
-    pub fn named(mut self, name: &str) -> CommandBuilder<'a, Execute> {
-        self.try_append_data(name.as_bytes());
-
-        CommandBuilder::<'a, Execute> {
+        CommandBuilder::<'a, N> {
             buffer: self.buffer,
             index: self.index,
             phantom: Default::default(),
@@ -170,6 +132,21 @@ impl Finishable for Test {}
 impl Finishable for Query {}
 impl Finishable for Set {}
 impl Finishable for Execute {}
+pub trait Nameable {
+    const NAME_SUFFIX: &'static [u8];
+}
+impl Nameable for Test {
+    const NAME_SUFFIX: &'static [u8] = b"=?";
+}
+impl Nameable for Query {
+    const NAME_SUFFIX: &'static [u8] = b"?";
+}
+impl Nameable for Set {
+    const NAME_SUFFIX: &'static [u8] = b"=";
+}
+impl Nameable for Execute {
+    const NAME_SUFFIX: &'static [u8] = b"";
+}
 
 #[cfg(test)]
 mod tests {
