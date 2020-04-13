@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Dion Dokter <diondokter@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
+description = "AT Commands builder and parser for Rust #![no_std]"
+homepage = "https://github.com/diondokter/at-commands"
+repository = "https://github.com/diondokter/at-commands"
+readme = "README.md"
+keywords = ["no_std", "AT", "Command", "Builder"]
 
 [dependencies]
 arrayvec = "0.5.1"

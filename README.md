@@ -1,4 +1,4 @@
-# AT Commands builder and parser for Rust #[no_std]
+# AT Commands builder and parser for Rust #![no_std]
 
 ## License
 
