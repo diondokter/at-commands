@@ -1,4 +1,4 @@
-# AT Commands builder and parser for Rust #[no_std]
+# AT Commands builder and parser for Rust #![no_std] [![crates.io](https://img.shields.io/crates/v/at-commands.svg)](https://crates.io/crates/at-commands) [![Documentation](https://docs.rs/at-commands/badge.svg)](https://docs.rs/at-commands)
 
 ## License
 
