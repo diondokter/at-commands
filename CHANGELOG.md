@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2020-05-21
+### Changed
+Removed dependency on ArrayVec
+
+### Fixed
+All formatting (fmt) has been removed.
+
 ## [0.2.0] - 2020-05-20
 ### Added
 Ability to not have an AT prefix in the command.

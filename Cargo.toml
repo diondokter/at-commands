@@ -1,6 +1,6 @@
 [package]
 name = "at-commands"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Dion Dokter <diondokter@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -11,4 +11,3 @@ readme = "README.md"
 keywords = ["no_std", "AT", "Command", "Builder"]
 
 [dependencies]
-arrayvec = { version = "0.5.1", default_features = false }
