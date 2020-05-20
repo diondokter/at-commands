@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2020-05-20
+### Added
+Ability to not have an AT prefix in the command.
+
+### Fixed
+The arrayvec dependency still used the std. Now changed to not use default features.
+
 ## [0.1.1] - 2020-04-13
 ### Added
 - Setup required for publishing the crate.

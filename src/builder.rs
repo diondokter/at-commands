@@ -17,20 +17,22 @@
 /// let mut buffer = [0; 128];
 ///
 /// // Make a query command
-/// let result = CommandBuilder::create_query(&mut buffer)
-///     .named("MYQUERY")
+/// let result = CommandBuilder::create_query(&mut buffer, true)
+///     .named("+MYQUERY")
 ///     .finish()
 ///     .unwrap();
 ///
+/// // Buffer now contains "AT+MYQUERY?"
 /// // Copy or DMA the resulting slice to the device.
 ///
 /// // Make a set command
-/// let result = CommandBuilder::create_set(&mut buffer)
-///     .named("MYSET")
+/// let result = CommandBuilder::create_set(&mut buffer, false)
+///     .named("+MYSET")
 ///     .with_int_parameter(42)
 ///     .finish()
 ///     .unwrap();
 ///
+/// // Buffer now contains "+MYSET=42"
 /// // Copy or DMA the resulting slice to the device.
 /// ```
 pub struct CommandBuilder<'a, STAGE> {
@@ -43,14 +45,16 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a test command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_test(buffer: &'a mut [u8]) -> CommandBuilder<'a, Initialized<Test>> {
+    pub fn create_test(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Test>> {
         let mut builder = CommandBuilder::<'a, Initialized<Test>> {
             buffer,
             index: 0,
             phantom: Default::default(),
         };
 
-        builder.try_append_data(b"AT");
+        if at_prefix {
+            builder.try_append_data(b"AT");
+        }
 
         builder
     }
@@ -58,14 +62,16 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a query command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_query(buffer: &'a mut [u8]) -> CommandBuilder<'a, Initialized<Query>> {
+    pub fn create_query(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Query>> {
         let mut builder = CommandBuilder::<'a, Initialized<Query>> {
             buffer,
             index: 0,
             phantom: Default::default(),
         };
 
-        builder.try_append_data(b"AT");
+        if at_prefix {
+            builder.try_append_data(b"AT");
+        }
 
         builder
     }
@@ -73,14 +79,16 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a set command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_set(buffer: &'a mut [u8]) -> CommandBuilder<'a, Initialized<Set>> {
+    pub fn create_set(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Set>> {
         let mut builder = CommandBuilder::<'a, Initialized<Set>> {
             buffer,
             index: 0,
             phantom: Default::default(),
         };
 
-        builder.try_append_data(b"AT");
+        if at_prefix {
+            builder.try_append_data(b"AT");
+        }
 
         builder
     }
@@ -88,14 +96,16 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for an test execute.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_execute(buffer: &'a mut [u8]) -> CommandBuilder<'a, Initialized<Execute>> {
+    pub fn create_execute(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Execute>> {
         let mut builder = CommandBuilder::<'a, Initialized<Execute>> {
             buffer,
             index: 0,
             phantom: Default::default(),
         };
 
-        builder.try_append_data(b"AT");
+        if at_prefix {
+            builder.try_append_data(b"AT");
+        }
 
         builder
     }
@@ -234,7 +244,7 @@ mod tests {
     #[test]
     fn test_command() {
         let mut buffer = [0; 128];
-        let value = CommandBuilder::create_test(&mut buffer)
+        let value = CommandBuilder::create_test(&mut buffer, true)
             .named("+TEST")
             .finish()
             .unwrap();
@@ -245,7 +255,7 @@ mod tests {
     #[test]
     fn test_query() {
         let mut buffer = [0; 128];
-        let value = CommandBuilder::create_query(&mut buffer)
+        let value = CommandBuilder::create_query(&mut buffer, true)
             .named("+QUERY")
             .finish()
             .unwrap();
@@ -256,7 +266,7 @@ mod tests {
     #[test]
     fn test_set() {
         let mut buffer = [0; 128];
-        let value = CommandBuilder::create_set(&mut buffer)
+        let value = CommandBuilder::create_set(&mut buffer, true)
             .named("+SET")
             .with_int_parameter(12345)
             .with_string_parameter("my_string_param")
@@ -274,7 +284,7 @@ mod tests {
     #[test]
     fn test_execute() {
         let mut buffer = [0; 128];
-        let value = CommandBuilder::create_execute(&mut buffer)
+        let value = CommandBuilder::create_execute(&mut buffer, true)
             .named("+EXECUTE")
             .finish()
             .unwrap();
@@ -285,7 +295,7 @@ mod tests {
     #[test]
     fn test_buffer_too_short() {
         let mut buffer = [0; 5];
-        assert!(CommandBuilder::create_execute(&mut buffer)
+        assert!(CommandBuilder::create_execute(&mut buffer, true)
             .named("+BUFFERLENGTH")
             .finish()
             .is_err());
