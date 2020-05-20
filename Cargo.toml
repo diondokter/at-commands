@@ -11,4 +11,4 @@ readme = "README.md"
 keywords = ["no_std", "AT", "Command", "Builder"]
 
 [dependencies]
-arrayvec = "0.5.1"
+arrayvec = { version = "0.5.1", default_features = false }
