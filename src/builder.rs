@@ -45,7 +45,10 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a test command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_test(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Test>> {
+    pub fn create_test(
+        buffer: &'a mut [u8],
+        at_prefix: bool,
+    ) -> CommandBuilder<'a, Initialized<Test>> {
         let mut builder = CommandBuilder::<'a, Initialized<Test>> {
             buffer,
             index: 0,
@@ -62,7 +65,10 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a query command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_query(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Query>> {
+    pub fn create_query(
+        buffer: &'a mut [u8],
+        at_prefix: bool,
+    ) -> CommandBuilder<'a, Initialized<Query>> {
         let mut builder = CommandBuilder::<'a, Initialized<Query>> {
             buffer,
             index: 0,
@@ -79,7 +85,10 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for a set command.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_set(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Set>> {
+    pub fn create_set(
+        buffer: &'a mut [u8],
+        at_prefix: bool,
+    ) -> CommandBuilder<'a, Initialized<Set>> {
         let mut builder = CommandBuilder::<'a, Initialized<Set>> {
             buffer,
             index: 0,
@@ -96,7 +105,10 @@ impl<'a> CommandBuilder<'a, Uninitialized> {
     /// Creates a builder for an test execute.
     ///
     /// The given buffer is used to build the command in and must be big enough to contain it.
-    pub fn create_execute(buffer: &'a mut [u8], at_prefix: bool) -> CommandBuilder<'a, Initialized<Execute>> {
+    pub fn create_execute(
+        buffer: &'a mut [u8],
+        at_prefix: bool,
+    ) -> CommandBuilder<'a, Initialized<Execute>> {
         let mut builder = CommandBuilder::<'a, Initialized<Execute>> {
             buffer,
             index: 0,
@@ -117,13 +129,17 @@ impl<'a, ANY> CommandBuilder<'a, ANY> {
     /// The index field is incremented no matter what.
     fn try_append_data(&mut self, data: &[u8]) {
         let data_length = data.len();
-        let data_left = self.buffer.len().checked_sub(self.index);
 
-        // Does the slice fit in the buffer?
-        if let Some(data_left) = data_left {
-            if data_left >= data_length {
-                // Yes, so let's copy it.
-                self.buffer[self.index..(self.index + data_length)].copy_from_slice(data);
+        // Why not just use copy_from_slice?
+        // That can give a panic and thus dumps a lot of fmt code in the binary.
+        // The compiler can check every aspect of this and so the code will never panic.
+
+        // Does the buffer have enough space left?
+        if let Some(buffer_slice) = self.buffer.get_mut(self.index..(self.index + data_length)) {
+            // Yes, zip the buffer with the data
+            for (buffer, data) in buffer_slice.iter_mut().zip(data) {
+                // Copy over the bytes.
+                *buffer = *data;
             }
         }
 
@@ -148,17 +164,16 @@ impl<'a, N: Nameable> CommandBuilder<'a, Initialized<N>> {
 
 impl<'a> CommandBuilder<'a, Set> {
     /// Add an integer parameter.
-    pub fn with_int_parameter(mut self, value: i32) -> Self {
-        use core::fmt::Write;
-        use arrayvec::ArrayString;
-
+    pub fn with_int_parameter<INT: Into<i32>>(mut self, value: INT) -> Self {
         if !matches!(self.buffer.get(self.index - 1), Some(b'=')) {
             self.try_append_data(b",");
         }
 
-        let mut conversion_buffer = ArrayString::<[u8; 12]>::new();
-        write!(&mut conversion_buffer, "{}", value).expect("Bad Conversion");
-        self.try_append_data(conversion_buffer.as_bytes());
+        let mut formatting_buffer = [0; crate::formatter::MAX_INT_DIGITS];
+        self.try_append_data(crate::formatter::write_int(
+            &mut formatting_buffer,
+            value.into(),
+        ));
         self
     }
 
