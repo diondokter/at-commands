@@ -50,6 +50,34 @@ pub fn write_int(buffer: &mut [u8], mut value: i32) -> &mut [u8] {
     &mut buffer[0..buffer_index]
 }
 
+pub fn parse_int(mut buffer: &[u8]) -> Option<i32> {
+    if buffer.len() == 0 || buffer.len() > MAX_INT_DIGITS {
+        return None;
+    }
+
+    let is_negative = buffer[0] == b'-';
+
+    if is_negative {
+        buffer = &buffer[1..];
+    }
+
+    let mut value = 0;
+    for char in buffer.iter() {
+        if *char < b'0' || *char > b'9' {
+            return None;
+        } else {
+            value *= 10;
+            value -= (*char - b'0') as i32;
+        }
+    }
+
+    if is_negative {
+        Some(value)
+    } else {
+        Some(-value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -65,5 +93,22 @@ mod tests {
         assert_eq!(write_int(&mut buffer, 42), b"42");
         assert_eq!(write_int(&mut buffer, -2147483648), b"-2147483648");
         assert_eq!(write_int(&mut buffer, 2147483647), b"2147483647");
+    }
+
+    #[test]
+    fn test_parse_int() {
+        assert_eq!(parse_int(b"0"), Some(0));
+        assert_eq!(parse_int(b"-1"), Some(-1));
+        assert_eq!(parse_int(b"1"), Some(1));
+        assert_eq!(parse_int(b"-42"), Some(-42));
+        assert_eq!(parse_int(b"42"), Some(42));
+        assert_eq!(parse_int(b"-2147483648"), Some(-2147483648));
+        assert_eq!(parse_int(b"2147483647"), Some(2147483647));
+
+        assert_eq!(parse_int(b""), None);
+        assert_eq!(parse_int(b"abc"), None);
+        assert_eq!(parse_int(b"-b"), None);
+        assert_eq!(parse_int(b"123456a"), None);
+        assert_eq!(parse_int(b"z12354"), None);
     }
 }
