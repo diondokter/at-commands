@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2020-08-14
+### Changed
+- **Breaking**: Command is now terminated with `\r\n` instead of `\n`.
+
+### Added
+- The function `finish_with` has been added so users can choose their own termination.
+
 ## [0.2.1] - 2020-05-21
 ### Changed
 - All formatting (fmt) has been removed. (This drastically reduces the amount of flash memory used)
