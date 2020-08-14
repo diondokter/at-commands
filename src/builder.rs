@@ -201,8 +201,37 @@ impl<'a, F: Finishable> CommandBuilder<'a, F> {
     ///
     /// If the buffer was not long enough,
     /// then an Err is returned with the size that was required for it to succeed.
-    pub fn finish(mut self) -> Result<&'a [u8], usize> {
-        self.try_append_data(b"\n");
+    pub fn finish(self) -> Result<&'a [u8], usize> {
+        self.finish_with(b"\r\n")
+    }
+
+    /// Finishes the builder.
+    ///
+    /// With the terminator variable, you can decide how to end the command.
+    /// Normally this is `\r\n`.
+    ///
+    /// ```rust
+    /// use at_commands::builder::CommandBuilder;
+    ///
+    /// let mut buffer = [0; 128];
+    ///
+    /// // Make a query command
+    /// let result = CommandBuilder::create_query(&mut buffer, true)
+    ///     .named("+MYQUERY")
+    ///     .finish_with(b"\0")
+    ///     .unwrap();
+    /// ```
+    ///
+    /// When Ok, it returns a slice with the built command.
+    /// The slice points to the same memory as the buffer,
+    /// but is only as long as is required to contain the command.
+    ///
+    /// The command length is thus the length of the slice.
+    ///
+    /// If the buffer was not long enough,
+    /// then an Err is returned with the size that was required for it to succeed.
+    pub fn finish_with(mut self, terminator: &[u8]) -> Result<&'a [u8], usize> {
+        self.try_append_data(terminator);
 
         if self.index > self.buffer.len() {
             Err(self.index)
@@ -264,7 +293,7 @@ mod tests {
             .finish()
             .unwrap();
 
-        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+TEST=?\n");
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+TEST=?\r\n");
     }
 
     #[test]
@@ -275,7 +304,7 @@ mod tests {
             .finish()
             .unwrap();
 
-        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+QUERY?\n");
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+QUERY?\r\n");
     }
 
     #[test]
@@ -292,7 +321,7 @@ mod tests {
 
         assert_eq!(
             core::str::from_utf8(value).unwrap(),
-            "AT+SET=12345,\"my_string_param\",67,89\n"
+            "AT+SET=12345,\"my_string_param\",67,89\r\n"
         );
     }
 
@@ -304,7 +333,7 @@ mod tests {
             .finish()
             .unwrap();
 
-        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+EXECUTE\n");
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+EXECUTE\r\n");
     }
 
     #[test]
@@ -314,5 +343,16 @@ mod tests {
             .named("+BUFFERLENGTH")
             .finish()
             .is_err());
+    }
+
+    #[test]
+    fn test_terminator() {
+        let mut buffer = [0; 128];
+        let value = CommandBuilder::create_test(&mut buffer, true)
+            .named("+TEST")
+            .finish_with(b"\0")
+            .unwrap();
+
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+TEST=?\0");
     }
 }
