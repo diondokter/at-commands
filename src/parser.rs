@@ -1,64 +1,37 @@
-pub struct CommandParser<'a, ProgressState, OkDataType> {
+use crate::tuple_concat::TupleConcat;
+
+#[must_use]
+pub struct CommandParser<'a, D> {
     buffer: &'a [u8],
     buffer_index: usize,
-    ok_data: OkDataType,
-    error_index: Option<u8>,
-    errors_tested: u8,
-    ok_data_valid: bool,
-    progress_phantom: core::marker::PhantomData<ProgressState>,
+    data_valid: bool,
+    data: D,
 }
 
-pub struct Uninitialized;
-pub struct OkUninitialized;
-pub struct OkStarted;
-pub struct ErrUninitialized;
-pub struct ErrStarted;
-
-impl<'a> CommandParser<'a, Uninitialized, ()> {
-    pub fn parse<OkDataType>(
-        buffer: &'a [u8],
-        initial_ok_data: OkDataType,
-    ) -> CommandParser<'a, OkUninitialized, OkDataType> {
+impl<'a> CommandParser<'a, ()> {
+    pub fn parse(buffer: &'a [u8]) -> CommandParser<'a, ()> {
         CommandParser {
             buffer,
             buffer_index: 0,
-            ok_data: initial_ok_data,
-            error_index: None,
-            errors_tested: 0,
-            ok_data_valid: true,
-            progress_phantom: Default::default(),
+            data_valid: true,
+            data: (),
         }
     }
 }
-
-impl<'a, AnyOkData> CommandParser<'a, OkUninitialized, AnyOkData> {
-    pub fn with_ok(self) -> CommandParser<'a, OkStarted, AnyOkData> {
-        CommandParser::<'a, _, _> {
-            buffer: self.buffer,
-            buffer_index: 0,
-            ok_data: self.ok_data,
-            error_index: self.error_index,
-            errors_tested: self.errors_tested,
-            ok_data_valid: self.ok_data_valid,
-            progress_phantom: Default::default(),
-        }
-    }
-}
-
-impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
+impl<'a, D> CommandParser<'a, D> {
     pub fn expect_identifier(mut self, identifier: &[u8]) -> Self {
         // If we're already not valid, then quit
-        if !self.ok_data_valid {
+        if !self.data_valid {
             return self;
         }
 
         if self.buffer[self.buffer_index..].len() < identifier.len() {
-            self.ok_data_valid = false;
+            self.data_valid = false;
             return self;
         }
 
         // Zip together the identifier and the buffer data. If all bytes are the same, the data is valid.
-        self.ok_data_valid = self.buffer[self.buffer_index..]
+        self.data_valid = self.buffer[self.buffer_index..]
             .iter()
             .zip(identifier)
             .all(|(buffer, id)| *buffer == *id);
@@ -68,30 +41,88 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
         self
     }
 
-    pub fn expect_int_parameter<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(&mut AnyOkData, i32) -> Result<(), ()>,
-    {
+    /// Finds the index of the character after the int parameter or the end of the data.
+    fn find_end_of_int_parameter(&mut self) -> usize {
+        self.buffer_index
+            + self
+                .buffer
+                .get(self.buffer_index..)
+                .map(|buffer| {
+                    buffer
+                        .iter()
+                        .take_while(|byte| byte.is_ascii_digit() || **byte == b'-')
+                        .count()
+                })
+                .unwrap_or(self.buffer.len())
+    }
+
+    /// Finds the index of the character after the int parameter or the end of the data.
+    fn find_end_of_string_parameter(&mut self) -> usize {
+        let mut counted_quotes = 0;
+
+        self.buffer_index
+            + self
+                .buffer
+                .get(self.buffer_index..)
+                .map(|buffer| {
+                    buffer
+                        .iter()
+                        .take_while(|byte| {
+                            counted_quotes += (**byte == b'"') as u8;
+                            counted_quotes < 2
+                        })
+                        .count()
+                        + 1
+                })
+                .unwrap_or(self.buffer.len())
+    }
+
+    pub fn finish(self) -> Result<D, ParseError> {
+        if self.data_valid {
+            Ok(self.data)
+        } else {
+            Err(ParseError)
+        }
+    }
+}
+
+impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
+    pub fn expect_int_parameter(mut self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
-        if !self.ok_data_valid {
-            return self;
+        if !self.data_valid {
+            return CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(0),
+            };
         }
 
         // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_parameter();
+        let parameter_end = self.find_end_of_int_parameter();
         // Get the bytes in which the int should reside.
         let int_slice = match self.buffer.get(self.buffer_index..parameter_end) {
             None => {
-                self.ok_data_valid = false;
-                return self;
+                self.data_valid = false;
+                return CommandParser {
+                    buffer: self.buffer,
+                    buffer_index: self.buffer_index,
+                    data_valid: self.data_valid,
+                    data: self.data.tup_cat(0),
+                };
             }
             Some(int_slice) => int_slice,
         };
         if int_slice.is_empty() {
             // We probably hit the end of the buffer.
             // The parameter is empty so it is always invalid.
-            self.ok_data_valid = false;
-            return self;
+            self.data_valid = false;
+            return CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(0),
+            };
         }
 
         // Parse the int
@@ -102,33 +133,50 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
             parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
         // If we've found an int, then the data may be valid and we allow the closure to set the result ok data.
         if let Some(parameter_value) = parsed_int {
-            self.ok_data_valid = f(&mut self.ok_data, parameter_value).is_ok();
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(parameter_value),
+            }
         } else {
-            self.ok_data_valid = false;
+            self.data_valid = false;
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(0),
+            }
         }
-
-        self
     }
-
-    pub fn expect_string_parameter<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(&mut AnyOkData, &str) -> Result<(), ()>,
-    {
+}
+impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
+    pub fn expect_string_parameter(mut self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
-        if !self.ok_data_valid {
-            return self;
+        if !self.data_valid {
+            return CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(""),
+            };
         }
 
         // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_parameter();
-        // Get the bytes in which the string should reside.
-        let string_slice = &self.buffer[self.buffer_index..parameter_end];
-        if string_slice.is_empty() {
-            // We probably hit the end of the buffer.
+        let parameter_end = self.find_end_of_string_parameter();
+        if parameter_end == self.buffer.len() {
+            // We hit the end of the buffer.
             // The parameter is empty so it is always invalid.
-            self.ok_data_valid = false;
-            return self;
+            self.data_valid = false;
+            return CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(""),
+            };
         }
+        // Get the bytes in which the string should reside.
+        let string_slice = &self.buffer[(self.buffer_index + 1)..(parameter_end - 1)];
 
         let has_comma_after_parameter = if let Some(next_char) = self.buffer.get(parameter_end) {
             *next_char == b','
@@ -140,86 +188,26 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
         self.buffer_index = parameter_end + has_comma_after_parameter as usize;
         // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
         if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
-            self.ok_data_valid = f(&mut self.ok_data, parameter_value).is_ok();
-        } else {
-            self.ok_data_valid = false;
-        }
-
-        self
-    }
-
-    pub fn expect_ending_with_ok(self) -> CommandParser<'a, ErrStarted, AnyOkData> {
-        self.expect_ending_with_identifier(b"OK\n")
-    }
-    pub fn expect_ending_with_newline_ok(self) -> CommandParser<'a, ErrStarted, AnyOkData> {
-        self.expect_ending_with_identifier(b"\nOK\n")
-    }
-    pub fn expect_ending_with_newline(self) -> CommandParser<'a, ErrStarted, AnyOkData> {
-        self.expect_ending_with_identifier(b"\n")
-    }
-    pub fn expect_ending_with_identifier(
-        mut self,
-        identifier: &[u8],
-    ) -> CommandParser<'a, ErrStarted, AnyOkData> {
-        self = self.expect_identifier(identifier);
-
-        CommandParser::<'a, _, _> {
-            buffer: self.buffer,
-            buffer_index: if self.ok_data_valid {
-                self.buffer_index
-            } else {
-                0
-            },
-            ok_data: self.ok_data,
-            error_index: self.error_index,
-            errors_tested: self.errors_tested,
-            ok_data_valid: self.ok_data_valid,
-            progress_phantom: Default::default(),
-        }
-    }
-
-    /// Finds the index of the character after the parameter or the end of the data.
-    fn find_end_of_parameter(&mut self) -> usize {
-        self.buffer_index
-            + self
-                .buffer
-                .get(self.buffer_index..)
-                .map(|buffer| {
-                    buffer
-                        .iter()
-                        .take_while(|byte| **byte != b',' && **byte != b'\n')
-                        .count()
-                })
-                .unwrap_or(self.buffer.len())
-    }
-}
-
-impl<'a, AnyOkData> CommandParser<'a, ErrStarted, AnyOkData> {
-    pub fn or_error(mut self, error: &[u8]) -> Self {
-        if !self.ok_data_valid && self.error_index.is_none() {
-            if self
-                .buffer
-                .iter()
-                .zip(error)
-                .all(|(buffer, error)| *buffer == *error)
-            {
-                self.error_index = Some(self.errors_tested);
-                self.buffer_index = error.len();
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(parameter_value),
             }
-            self.errors_tested += 1;
-        }
-
-        self
-    }
-
-    pub fn get_result(self) -> Result<AnyOkData, Option<u8>> {
-        if self.ok_data_valid {
-            Ok(self.ok_data)
         } else {
-            Err(self.error_index)
+            self.data_valid = false;
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(""),
+            }
         }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct ParseError;
 
 #[cfg(test)]
 mod tests {
@@ -227,24 +215,17 @@ mod tests {
 
     #[test]
     fn test_ok() {
-        let parse_result =
-            CommandParser::parse(b"+SYSGPIOREAD:654,true,-65154\nOK\n", (0, false, 0))
-                .with_ok()
-                .expect_identifier(b"+SYSGPIOREAD:")
-                .expect_int_parameter(|data, value| {
-                    data.0 = value;
-                    Ok(())
-                })
-                .expect_string_parameter(|data, value| {
-                    value.parse().map(|val| data.1 = val).map_err(|_| ())
-                })
-                .expect_int_parameter(|data, value| {
-                    data.2 = value;
-                    Ok(())
-                })
-                .expect_ending_with_newline_ok()
-                .get_result();
+        let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
+            .expect_identifier(b"+SYSGPIOREAD:")
+            .expect_int_parameter()
+            .expect_string_parameter()
+            .expect_int_parameter()
+            .expect_identifier(b"\r\nOK\r\n")
+            .finish()
+            .unwrap();
 
-        assert_eq!(parse_result, Ok((654, true, -65154)))
+        assert_eq!(x, 654);
+        assert_eq!(y, "true");
+        assert_eq!(z, -65154);
     }
 }

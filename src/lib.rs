@@ -6,3 +6,4 @@
 pub mod builder;
 pub(crate) mod formatter;
 pub mod parser;
+pub(crate) mod tuple_concat;
