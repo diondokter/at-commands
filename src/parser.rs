@@ -80,7 +80,13 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
         // Get the end index of the current parameter.
         let parameter_end = self.find_end_of_parameter();
         // Get the bytes in which the int should reside.
-        let int_slice = &self.buffer[self.buffer_index..parameter_end];
+        let int_slice = match self.buffer.get(self.buffer_index..parameter_end) {
+            None => {
+                self.ok_data_valid = false;
+                return self;
+            }
+            Some(int_slice) => int_slice,
+        };
         if int_slice.is_empty() {
             // We probably hit the end of the buffer.
             // The parameter is empty so it is always invalid.
@@ -92,7 +98,8 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
         let parsed_int = crate::formatter::parse_int(int_slice);
 
         // Advance the index to the character after the parameter separator (comma) if it's there.
-        self.buffer_index = parameter_end + (self.buffer[parameter_end] == b',') as usize;
+        self.buffer_index =
+            parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
         // If we've found an int, then the data may be valid and we allow the closure to set the result ok data.
         if let Some(parameter_value) = parsed_int {
             self.ok_data_valid = f(&mut self.ok_data, parameter_value).is_ok();
@@ -123,8 +130,14 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
             return self;
         }
 
+        let has_comma_after_parameter = if let Some(next_char) = self.buffer.get(parameter_end) {
+            *next_char == b','
+        } else {
+            false
+        };
+
         // Advance the index to the character after the parameter separator.
-        self.buffer_index = parameter_end + (self.buffer[parameter_end] == b',') as usize;
+        self.buffer_index = parameter_end + has_comma_after_parameter as usize;
         // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
         if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
             self.ok_data_valid = f(&mut self.ok_data, parameter_value).is_ok();
@@ -168,10 +181,16 @@ impl<'a, AnyOkData> CommandParser<'a, OkStarted, AnyOkData> {
     /// Finds the index of the character after the parameter or the end of the data.
     fn find_end_of_parameter(&mut self) -> usize {
         self.buffer_index
-            + self.buffer[self.buffer_index..]
-                .iter()
-                .take_while(|byte| **byte != b',' && **byte != b'\n')
-                .count()
+            + self
+                .buffer
+                .get(self.buffer_index..)
+                .map(|buffer| {
+                    buffer
+                        .iter()
+                        .take_while(|byte| **byte != b',' && **byte != b'\n')
+                        .count()
+                })
+                .unwrap_or(self.buffer.len())
     }
 }
 
@@ -208,22 +227,23 @@ mod tests {
 
     #[test]
     fn test_ok() {
-        let parse_result = CommandParser::parse(b"+SYSGPIOREAD:654,true,-65154\nOK\n", (0, false, 0))
-            .with_ok()
-            .expect_identifier(b"+SYSGPIOREAD:")
-            .expect_int_parameter(|data, value| {
-                data.0 = value;
-                Ok(())
-            })
-            .expect_string_parameter(|data, value| {
-                value.parse().map(|val| data.1 = val).map_err(|_| ())
-            })
-            .expect_int_parameter(|data, value| {
-                data.2 = value;
-                Ok(())
-            })
-            .expect_ending_with_newline_ok()
-            .get_result();
+        let parse_result =
+            CommandParser::parse(b"+SYSGPIOREAD:654,true,-65154\nOK\n", (0, false, 0))
+                .with_ok()
+                .expect_identifier(b"+SYSGPIOREAD:")
+                .expect_int_parameter(|data, value| {
+                    data.0 = value;
+                    Ok(())
+                })
+                .expect_string_parameter(|data, value| {
+                    value.parse().map(|val| data.1 = val).map_err(|_| ())
+                })
+                .expect_int_parameter(|data, value| {
+                    data.2 = value;
+                    Ok(())
+                })
+                .expect_ending_with_newline_ok()
+                .get_result();
 
         assert_eq!(parse_result, Ok((654, true, -65154)))
     }
