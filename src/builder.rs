@@ -165,27 +165,43 @@ impl<'a, N: Nameable> CommandBuilder<'a, Initialized<N>> {
 impl<'a> CommandBuilder<'a, Set> {
     /// Add an integer parameter.
     pub fn with_int_parameter<INT: Into<i32>>(mut self, value: INT) -> Self {
-        if !matches!(self.buffer.get(self.index - 1), Some(b'=')) {
-            self.try_append_data(b",");
-        }
-
         let mut formatting_buffer = [0; crate::formatter::MAX_INT_DIGITS];
         self.try_append_data(crate::formatter::write_int(
             &mut formatting_buffer,
             value.into(),
         ));
+        self.try_append_data(b",");
         self
     }
 
     /// Add a string parameter
     pub fn with_string_parameter(mut self, value: &str) -> Self {
-        if !matches!(self.buffer.get(self.index - 1), Some(b'=')) {
-            self.try_append_data(b",");
-        }
-
         self.try_append_data(b"\"");
         self.try_append_data(value.as_bytes());
         self.try_append_data(b"\"");
+        self.try_append_data(b",");
+        self
+    }
+
+    /// Add an optional integer parameter.
+    pub fn with_optional_int_parameter<INT: Into<i32>>(self, value: Option<INT>) -> Self {
+        match value {
+            None => self.with_empty_parameter(),
+            Some(value) => self.with_int_parameter(value),
+        }
+    }
+
+    /// Add an optional string parameter.
+    pub fn with_optional_string_parameter(self, value: Option<&str>) -> Self {
+        match value {
+            None => self.with_empty_parameter(),
+            Some(value) => self.with_string_parameter(value),
+        }
+    }
+
+    /// Add a comma, representing an unset optional parameter.
+    pub fn with_empty_parameter(mut self) -> Self {
+        self.try_append_data(b",");
         self
     }
 }
@@ -231,6 +247,12 @@ impl<'a, F: Finishable> CommandBuilder<'a, F> {
     /// If the buffer was not long enough,
     /// then an Err is returned with the size that was required for it to succeed.
     pub fn finish_with(mut self, terminator: &[u8]) -> Result<&'a [u8], usize> {
+        // if last byte is a comma, decrement index to drop it
+        if let Some(c) = self.buffer.get(self.index - 1) {
+            if *c == b',' {
+                self.index -= 1;
+            }
+        }
         self.try_append_data(terminator);
 
         if self.index > self.buffer.len() {
@@ -343,6 +365,39 @@ mod tests {
             .named("+BUFFERLENGTH")
             .finish()
             .is_err());
+        assert!(CommandBuilder::create_execute(&mut buffer, true)
+            .named("+A")
+            .finish()
+            .is_err()); // too short by only one byte
+    }
+
+    #[test]
+    fn test_buffer_exact_size() {
+        let mut buffer = [0; 32];
+        let value = CommandBuilder::create_execute(&mut buffer[..8], true)
+            .named("+GMR")
+            .finish()
+            .unwrap();
+
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+GMR\r\n");
+
+        let value = CommandBuilder::create_set(&mut buffer[..19], true)
+            .named("+CWRECONNCFG")
+            .with_int_parameter(15)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            core::str::from_utf8(value).unwrap(),
+            "AT+CWRECONNCFG=15\r\n"
+        );
+
+        let value = CommandBuilder::create_query(&mut buffer[..14], true)
+            .named("+UART_CUR")
+            .finish()
+            .unwrap();
+
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+UART_CUR?\r\n");
     }
 
     #[test]
@@ -354,5 +409,49 @@ mod tests {
             .unwrap();
 
         assert_eq!(core::str::from_utf8(value).unwrap(), "AT+TEST=?\0");
+    }
+
+    #[test]
+    fn test_optional() {
+        let mut buffer = [0; 128];
+        let value = CommandBuilder::create_set(&mut buffer, true)
+            .named("+CCUG")
+            .with_empty_parameter()
+            .with_optional_int_parameter(Some(9))
+            .finish_with(b"\r")
+            .unwrap();
+        // see https://www.multitech.com/documents/publications/manuals/s000453c.pdf
+        // pages 8 and 85 for command and 150 for CR ending
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+CCUG=,9\r");
+
+        let value = CommandBuilder::create_set(&mut buffer, true)
+            .named("+BLEGATTSSETATTR")
+            .with_int_parameter(1)
+            .with_int_parameter(1)
+            .with_empty_parameter()
+            .with_int_parameter(4)
+            .finish()
+            .unwrap();
+        // https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/BLE_AT_Commands.html#cmd-GSSETA
+        assert_eq!(
+            core::str::from_utf8(value).unwrap(),
+            "AT+BLEGATTSSETATTR=1,1,,4\r\n"
+        );
+
+        let value = CommandBuilder::create_set(&mut buffer, true)
+            .named("+HTTPCLIENT")
+            .with_int_parameter(2)
+            .with_int_parameter(1)
+            .with_optional_string_parameter(Some("http://localpc/ip"))
+            .with_empty_parameter()
+            .with_empty_parameter()
+            .with_int_parameter(1)
+            .finish()
+            .unwrap();
+
+        assert_eq!(
+            core::str::from_utf8(value).unwrap(),
+            "AT+HTTPCLIENT=2,1,\"http://localpc/ip\",,,1\r\n"
+        );
     }
 }
