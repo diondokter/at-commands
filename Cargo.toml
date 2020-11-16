@@ -11,3 +11,7 @@ readme = "README.md"
 keywords = ["no_std", "AT", "Command", "Builder"]
 
 [dependencies]
+
+
+[features]
+parser = []
