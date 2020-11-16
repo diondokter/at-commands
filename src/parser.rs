@@ -1,5 +1,17 @@
+//! Module that defines the at command parser
+
 use crate::tuple_concat::TupleConcat;
 
+/// ```
+///  let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
+///     .expect_identifier(b"+SYSGPIOREAD:")
+///     .expect_int_parameter()
+///     .expect_string_parameter()
+///     .expect_int_parameter()
+///     .expect_identifier(b"\r\nOK\r\n")
+///     .finish() 
+///     .unwrap();
+/// ```
 #[must_use]
 pub struct CommandParser<'a, D> {
     buffer: &'a [u8],
@@ -9,6 +21,7 @@ pub struct CommandParser<'a, D> {
 }
 
 impl<'a> CommandParser<'a, ()> {
+    /// Start parsing the command
     pub fn parse(buffer: &'a [u8]) -> CommandParser<'a, ()> {
         CommandParser {
             buffer,
@@ -78,6 +91,7 @@ impl<'a, D> CommandParser<'a, D> {
                 .unwrap_or(self.buffer.len())
     }
 
+    /// Finish parsing the command and get the results
     pub fn finish(self) -> Result<D, ParseError> {
         if self.data_valid {
             Ok(self.data)
@@ -209,6 +223,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
     }
 }
 
+/// Error type for parsing
 #[derive(Debug, Clone)]
 pub struct ParseError;
 
