@@ -50,7 +50,7 @@ pub fn write_int(buffer: &mut [u8], mut value: i32) -> &mut [u8] {
     &mut buffer[0..buffer_index]
 }
 
-#[cfg(feature = "parser")]
+#[cfg(any(feature = "parser", doc))]
 /// Parses an int
 pub fn parse_int(mut buffer: &[u8]) -> Option<i32> {
     if buffer.len() == 0 || buffer.len() > MAX_INT_DIGITS {

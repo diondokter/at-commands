@@ -5,7 +5,7 @@
 
 pub mod builder;
 pub(crate) mod formatter;
-#[cfg(feature = "parser")]
+#[cfg(any(feature = "parser", doc))]
 pub mod parser;
-#[cfg(feature = "parser")]
+#[cfg(any(feature = "parser", doc))]
 pub(crate) mod tuple_concat;
