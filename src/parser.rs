@@ -19,6 +19,7 @@ impl<'a> CommandParser<'a, ()> {
     }
 }
 impl<'a, D> CommandParser<'a, D> {
+    /// Tries reading an identifier
     pub fn expect_identifier(mut self, identifier: &[u8]) -> Self {
         // If we're already not valid, then quit
         if !self.data_valid {
@@ -87,6 +88,7 @@ impl<'a, D> CommandParser<'a, D> {
 }
 
 impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
+    /// Tries reading an int parameter
     pub fn expect_int_parameter(mut self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
@@ -151,6 +153,7 @@ impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
     }
 }
 impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
+    /// Tries reading a string parameter
     pub fn expect_string_parameter(mut self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
