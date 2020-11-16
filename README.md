@@ -5,6 +5,8 @@ This crate can be used to build at command style messages efficiently.
 There is experimental support for parsing them too, but that isn't complete and isn't too efficient just yet.
 To access this, you'll need to enable the parser feature. Semver does apply to it, though.
 
+(Help and feedback would be appreciated with this feature)
+
 ## Usage
 
 Builder:
