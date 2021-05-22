@@ -3,13 +3,14 @@
 use crate::tuple_concat::TupleConcat;
 
 /// ```
+///  use at_commands::parser::CommandParser;
 ///  let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
 ///     .expect_identifier(b"+SYSGPIOREAD:")
 ///     .expect_int_parameter()
 ///     .expect_string_parameter()
 ///     .expect_int_parameter()
 ///     .expect_identifier(b"\r\nOK\r\n")
-///     .finish() 
+///     .finish()
 ///     .unwrap();
 /// ```
 #[must_use]
@@ -64,7 +65,9 @@ impl<'a, D> CommandParser<'a, D> {
                 .map(|buffer| {
                     buffer
                         .iter()
-                        .take_while(|byte| byte.is_ascii_digit() || **byte == b'-' || **byte == b'+')
+                        .take_while(|byte| {
+                            byte.is_ascii_digit() || **byte == b'-' || **byte == b'+'
+                        })
                         .count()
                 })
                 .unwrap_or(self.buffer.len())
