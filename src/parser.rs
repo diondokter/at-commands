@@ -144,6 +144,7 @@ impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
             };
         }
 
+        // Skip the leading '+'
         let int_slice = if int_slice[0] == b'+' {
             &int_slice[1..]
         } else {
