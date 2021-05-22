@@ -1,5 +1,5 @@
 #![allow(unused_attributes)]
-#![rustfmt::skip]
+#[rustfmt::skip]
 
 pub trait TupleConcat<C> {
     type Out;
