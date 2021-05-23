@@ -1,11 +1,8 @@
 # AT Commands builder and parser for Rust #![no_std] [![crates.io](https://img.shields.io/crates/v/at-commands.svg)](https://crates.io/crates/at-commands) [![Documentation](https://docs.rs/at-commands/badge.svg)](https://docs.rs/at-commands)
 
-This crate can be used to build at command style messages efficiently.
+This crate can be used to build and parse at command style messages efficiently.
 
-There is experimental support for parsing them too, but that isn't complete and isn't too efficient just yet.
-To access this, you'll need to enable the parser feature. Semver does apply to it, though.
-
-(Help and feedback would be appreciated with this feature)
+Help would be appreciated! Interested in new features, efficiency improvements and API improvements.
 
 ## Usage
 
@@ -37,6 +34,8 @@ let result = CommandBuilder::create_set(&mut buffer, false)
 
 Parser:
 ```rust
+use at_commands::parser::CommandParser;
+
 let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
     .expect_identifier(b"+SYSGPIOREAD:")
     .expect_int_parameter()
