@@ -3,13 +3,14 @@
 use crate::tuple_concat::TupleConcat;
 
 /// ```
+///  use at_commands::parser::CommandParser;
 ///  let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
 ///     .expect_identifier(b"+SYSGPIOREAD:")
 ///     .expect_int_parameter()
 ///     .expect_string_parameter()
 ///     .expect_int_parameter()
 ///     .expect_identifier(b"\r\nOK\r\n")
-///     .finish() 
+///     .finish()
 ///     .unwrap();
 /// ```
 #[must_use]
@@ -64,7 +65,9 @@ impl<'a, D> CommandParser<'a, D> {
                 .map(|buffer| {
                     buffer
                         .iter()
-                        .take_while(|byte| byte.is_ascii_digit() || **byte == b'-')
+                        .take_while(|byte| {
+                            byte.is_ascii_digit() || **byte == b'-' || **byte == b'+'
+                        })
                         .count()
                 })
                 .unwrap_or(self.buffer.len())
@@ -140,6 +143,13 @@ impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
                 data: self.data.tup_cat(0),
             };
         }
+
+        // Skip the leading '+'
+        let int_slice = if int_slice[0] == b'+' {
+            &int_slice[1..]
+        } else {
+            int_slice
+        };
 
         // Parse the int
         let parsed_int = crate::formatter::parse_int(int_slice);
@@ -245,5 +255,17 @@ mod tests {
         assert_eq!(x, 654);
         assert_eq!(y, "true");
         assert_eq!(z, -65154);
+    }
+
+    #[test]
+    fn test_positive_int_param() {
+        let (x,) = CommandParser::parse(b"OK+RP:+20dBm\r\n")
+            .expect_identifier(b"OK+RP:")
+            .expect_int_parameter()
+            .expect_identifier(b"dBm\r\n")
+            .finish()
+            .unwrap();
+
+        assert_eq!(x, 20);
     }
 }
