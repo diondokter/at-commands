@@ -3,15 +3,28 @@
 use crate::tuple_concat::TupleConcat;
 
 /// ```
-///  use at_commands::parser::CommandParser;
-///  let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
-///     .expect_identifier(b"+SYSGPIOREAD:")
-///     .expect_int_parameter()
-///     .expect_string_parameter()
-///     .expect_int_parameter()
-///     .expect_identifier(b"\r\nOK\r\n")
-///     .finish()
-///     .unwrap();
+/// use at_commands::parser::CommandParser;
+/// let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:654,\"true\",-65154\r\nOK\r\n")
+///    .expect_identifier(b"+SYSGPIOREAD:")
+///    .expect_int_parameter()
+///    .expect_string_parameter()
+///    .expect_int_parameter()
+///    .expect_identifier(b"\r\nOK\r\n")
+///    .finish()
+///    .unwrap();
+///
+/// assert_eq!(x, 654);
+/// assert_eq!(y, "true");
+/// assert_eq!(z, -65154);
+///
+/// let (w,) = CommandParser::parse(b"+STATUS: READY\r\nOK\r\n")
+///    .expect_identifier(b"+STATUS: ")
+///    .expect_raw_string()
+///    .expect_identifier(b"\r\nOK\r\n")
+///    .finish()
+///    .unwrap();
+///
+/// assert_eq!(w, "READY");
 /// ```
 #[must_use]
 pub struct CommandParser<'a, D> {
@@ -73,7 +86,7 @@ impl<'a, D> CommandParser<'a, D> {
                 .unwrap_or(self.buffer.len())
     }
 
-    /// Finds the index of the character after the int parameter or the end of the data.
+    /// Finds the index of the character after the string parameter or the end of the data.
     fn find_end_of_string_parameter(&mut self) -> usize {
         let mut counted_quotes = 0;
 
@@ -88,6 +101,22 @@ impl<'a, D> CommandParser<'a, D> {
                             counted_quotes += (**byte == b'"') as u8;
                             counted_quotes < 2
                         })
+                        .count()
+                        + 1
+                })
+                .unwrap_or(self.buffer.len())
+    }
+
+    /// Finds the index of the control character after the non-quoted string or the end of the data.
+    fn find_end_of_raw_string(&mut self) -> usize {
+        self.buffer_index
+            + self
+                .buffer
+                .get(self.buffer_index..)
+                .map(|buffer| {
+                    buffer
+                        .iter()
+                        .take_while(|byte| !(**byte as char).is_ascii_control())
                         .count()
                         + 1
                 })
@@ -213,6 +242,45 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
 
         // Advance the index to the character after the parameter separator.
         self.buffer_index = parameter_end + has_comma_after_parameter as usize;
+        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
+        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(parameter_value),
+            }
+        } else {
+            self.data_valid = false;
+            CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(""),
+            }
+        }
+    }
+
+    /// Tries reading a non-parameter, non-quoted string
+    pub fn expect_raw_string(mut self) -> CommandParser<'a, D::Out> {
+        // If we're already not valid, then quit
+        if !self.data_valid {
+            return CommandParser {
+                buffer: self.buffer,
+                buffer_index: self.buffer_index,
+                data_valid: self.data_valid,
+                data: self.data.tup_cat(""),
+            };
+        }
+
+        // Get the end index of the current string.
+        let end = self.find_end_of_raw_string();
+        // Get the bytes in which the string should reside.
+        let string_slice = &self.buffer[self.buffer_index..(end - 1)];
+
+        // Advance the index to the character after the string.
+        self.buffer_index = end - 1 as usize;
+
         // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
         if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
             CommandParser {
