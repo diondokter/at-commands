@@ -128,7 +128,7 @@ impl<'a, D> CommandParser<'a, D> {
         if self.data_valid {
             Ok(self.data)
         } else {
-            Err(ParseError)
+            Err(ParseError(self.buffer_index))
         }
     }
 }
@@ -302,8 +302,10 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
 }
 
 /// Error type for parsing
+/// 
+/// The number is the index of up to where it was correctly parsed
 #[derive(Debug, Clone)]
-pub struct ParseError;
+pub struct ParseError(usize);
 
 #[cfg(test)]
 mod tests {
