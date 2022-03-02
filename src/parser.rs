@@ -53,6 +53,28 @@ impl<'a, D> CommandParser<'a, D> {
         // Advance the index
         self.buffer_index += identifier.len();
 
+        self.trim_space()
+    }
+
+    /// Moves the internal buffer index over the next bit of space characters, if any
+    fn trim_space(mut self) -> Self {
+        // If we're already not valid, then quit
+        if !self.data_valid {
+            return self;
+        }
+
+        loop {
+            if let Some(c) = self.buffer.get(self.buffer_index) {
+                if *c == b' ' {
+                    self.buffer_index += 1;
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
         self
     }
 
@@ -174,6 +196,7 @@ impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
                 data: self.data.tup_cat(0),
             }
         }
+        .trim_space()
     }
 }
 impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
@@ -230,6 +253,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
                 data: self.data.tup_cat(""),
             }
         }
+        .trim_space()
     }
 }
 
@@ -267,5 +291,21 @@ mod tests {
             .unwrap();
 
         assert_eq!(x, 20);
+    }
+
+    #[test]
+    fn test_whitespace() {
+        let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD: 654, \"true\", -65154 \r\nOK\r\n")
+            .expect_identifier(b"+SYSGPIOREAD:")
+            .expect_int_parameter()
+            .expect_string_parameter()
+            .expect_int_parameter()
+            .expect_identifier(b"\r\nOK\r\n")
+            .finish()
+            .unwrap();
+
+        assert_eq!(x, 654);
+        assert_eq!(y, "true");
+        assert_eq!(z, -65154);
     }
 }
