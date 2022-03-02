@@ -322,11 +322,12 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
                 data: self.data.tup_cat(""),
             }
         }
+        .trim_space()
     }
 }
 
 /// Error type for parsing
-/// 
+///
 /// The number is the index of up to where it was correctly parsed
 #[derive(Debug, Clone)]
 pub struct ParseError(usize);
