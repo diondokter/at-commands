@@ -1,8 +1,8 @@
 [package]
 name = "at-commands"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Dion Dokter <diondokter@gmail.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "AT Commands builder and parser for Rust #![no_std]"
 homepage = "https://github.com/diondokter/at-commands"
