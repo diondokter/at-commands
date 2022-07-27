@@ -330,6 +330,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
 ///
 /// The number is the index of up to where it was correctly parsed
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct ParseError(usize);
 
 #[cfg(test)]
