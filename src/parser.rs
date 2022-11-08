@@ -243,7 +243,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
 
         // Get the end index of the current parameter.
         let parameter_end = self.find_end_of_string_parameter();
-        if parameter_end == self.buffer.len() {
+        if parameter_end > self.buffer.len() {
             // We hit the end of the buffer.
             // The parameter is empty so it is always invalid.
             self.data_valid = false;
@@ -379,5 +379,18 @@ mod tests {
         assert_eq!(x, 654);
         assert_eq!(y, "true");
         assert_eq!(z, -65154);
+    }
+
+    #[test]
+    fn string_param_at_end() {
+        let (x, y) = CommandParser::parse(br#"+SYSGPIOREAD: 42, "param at end""#)
+            .expect_identifier(b"+SYSGPIOREAD:")
+            .expect_int_parameter()
+            .expect_string_parameter()
+            .finish()
+            .unwrap();
+
+        assert_eq!(x, 42);
+        assert_eq!(y, "param at end");
     }
 }
