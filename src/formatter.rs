@@ -52,7 +52,7 @@ pub fn write_int(buffer: &mut [u8], mut value: i32) -> &mut [u8] {
 
 /// Parses an int
 pub fn parse_int(mut buffer: &[u8]) -> Option<i32> {
-    if buffer.len() == 0 || buffer.len() > MAX_INT_DIGITS {
+    if buffer.is_empty() || buffer.len() > MAX_INT_DIGITS {
         return None;
     }
 

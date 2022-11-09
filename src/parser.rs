@@ -76,13 +76,9 @@ impl<'a, D> CommandParser<'a, D> {
             return self;
         }
 
-        loop {
-            if let Some(c) = self.buffer.get(self.buffer_index) {
-                if *c == b' ' {
-                    self.buffer_index += 1;
-                } else {
-                    break;
-                }
+        while let Some(c) = self.buffer.get(self.buffer_index) {
+            if *c == b' ' {
+                self.buffer_index += 1;
             } else {
                 break;
             }
@@ -303,7 +299,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
         let string_slice = &self.buffer[self.buffer_index..(end - 1)];
 
         // Advance the index to the character after the string.
-        self.buffer_index = end - 1 as usize;
+        self.buffer_index = end - 1usize;
 
         // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
         if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
