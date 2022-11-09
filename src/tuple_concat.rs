@@ -131,7 +131,23 @@ impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, C> TupleConcat<C>
 impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, C> TupleConcat<C>
     for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13)
 {
-    type Out = (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, C);
+    type Out = (
+        T0,
+        T1,
+        T2,
+        T3,
+        T4,
+        T5,
+        T6,
+        T7,
+        T8,
+        T9,
+        T10,
+        T11,
+        T12,
+        T13,
+        C,
+    );
     fn tup_cat(self, c: C) -> Self::Out {
         (
             self.0, self.1, self.2, self.3, self.4, self.5, self.6, self.7, self.8, self.9,
@@ -141,9 +157,42 @@ impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, C> TupleConcat<
 }
 
 impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, C> TupleConcat<C>
-    for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14)
+    for (
+        T0,
+        T1,
+        T2,
+        T3,
+        T4,
+        T5,
+        T6,
+        T7,
+        T8,
+        T9,
+        T10,
+        T11,
+        T12,
+        T13,
+        T14,
+    )
 {
-    type Out = (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, C);
+    type Out = (
+        T0,
+        T1,
+        T2,
+        T3,
+        T4,
+        T5,
+        T6,
+        T7,
+        T8,
+        T9,
+        T10,
+        T11,
+        T12,
+        T13,
+        T14,
+        C,
+    );
     fn tup_cat(self, c: C) -> Self::Out {
         (
             self.0, self.1, self.2, self.3, self.4, self.5, self.6, self.7, self.8, self.9,
@@ -153,9 +202,44 @@ impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, C> TupleCo
 }
 
 impl<T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, C> TupleConcat<C>
-    for (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15)
+    for (
+        T0,
+        T1,
+        T2,
+        T3,
+        T4,
+        T5,
+        T6,
+        T7,
+        T8,
+        T9,
+        T10,
+        T11,
+        T12,
+        T13,
+        T14,
+        T15,
+    )
 {
-    type Out = (T0, T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, C);
+    type Out = (
+        T0,
+        T1,
+        T2,
+        T3,
+        T4,
+        T5,
+        T6,
+        T7,
+        T8,
+        T9,
+        T10,
+        T11,
+        T12,
+        T13,
+        T14,
+        T15,
+        C,
+    );
     fn tup_cat(self, c: C) -> Self::Out {
         (
             self.0, self.1, self.2, self.3, self.4, self.5, self.6, self.7, self.8, self.9,
