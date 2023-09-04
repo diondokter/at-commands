@@ -77,7 +77,7 @@ impl<'a, D> CommandParser<'a, D> {
         }
 
         // empty identifier is always valid
-        if self.buffer[self.buffer_index..].len() == 0 {
+        if self.buffer[self.buffer_index..].is_empty() {
             return self;
         }
 
@@ -116,7 +116,7 @@ impl<'a, D> CommandParser<'a, D> {
     }
 
     /// Finds the index of the character after the int parameter or the end of the data.
-    fn find_end_of_int_parameter(&mut self) -> usize {
+    fn find_end_of_int_parameter(&self) -> usize {
         self.buffer_index
             + self
                 .buffer
@@ -133,7 +133,7 @@ impl<'a, D> CommandParser<'a, D> {
     }
 
     /// Finds the index of the character after the string parameter or the end of the data.
-    fn find_end_of_string_parameter(&mut self) -> usize {
+    fn find_end_of_string_parameter(&self) -> usize {
         let mut counted_quotes = 0;
 
         self.buffer_index
@@ -154,7 +154,7 @@ impl<'a, D> CommandParser<'a, D> {
     }
 
     /// Finds the index of the control character after the non-quoted string or the end of the data.
-    fn find_end_of_raw_string(&mut self) -> usize {
+    fn find_end_of_raw_string(&self) -> usize {
         self.buffer_index
             + self
                 .buffer
@@ -169,6 +169,92 @@ impl<'a, D> CommandParser<'a, D> {
                 .unwrap_or(self.buffer.len())
     }
 
+    fn parse_int_parameter(&self) -> (usize, bool, Option<i32>) {
+        let mut new_buffer_index = self.buffer_index;
+        // Get the end index of the current parameter.
+        let parameter_end = self.find_end_of_int_parameter();
+        // Get the bytes in which the int should reside.
+        let int_slice = match self.buffer.get(self.buffer_index..parameter_end) {
+            None => {
+                return (new_buffer_index, false, None);
+            }
+            Some(int_slice) => int_slice,
+        };
+        if int_slice.is_empty() {
+            // We probably hit the end of the buffer.
+            // The parameter is empty but as it is optional not invalid
+            // Advance the index to the character after the parameter separator (comma) if it's there.
+            new_buffer_index =
+                parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
+            return (new_buffer_index, true, None);
+        }
+
+        // Skip the leading '+'
+        let int_slice = if int_slice[0] == b'+' {
+            &int_slice[1..]
+        } else {
+            int_slice
+        };
+
+        // Parse the int
+        let parsed_int = crate::formatter::parse_int(int_slice);
+
+        // Advance the index to the character after the parameter separator (comma) if it's there.
+        new_buffer_index = parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
+        // If we've found an int, then the data may be valid and we allow the closure to set the result ok data.
+        if let Some(parameter_value) = parsed_int {
+            (new_buffer_index, true, Some(parameter_value))
+        } else {
+            (new_buffer_index, false, None)
+        }
+    }
+
+    fn parse_string_parameter(&self) -> (usize, bool, Option<&'a str>) {
+        let mut new_buffer_index = self.buffer_index;
+        // Get the end index of the current parameter.
+        let parameter_end = self.find_end_of_string_parameter();
+        if parameter_end > self.buffer.len() {
+            // We hit the end of the buffer.
+            // The parameter is empty but as it is optional not invalid
+            return (new_buffer_index, true, None);
+        }
+        // Get the bytes in which the string should reside.
+        let string_slice = &self.buffer[(new_buffer_index + 1)..(parameter_end - 1)];
+
+        let has_comma_after_parameter = if let Some(next_char) = self.buffer.get(parameter_end) {
+            *next_char == b','
+        } else {
+            false
+        };
+
+        // Advance the index to the character after the parameter separator.
+        new_buffer_index = parameter_end + has_comma_after_parameter as usize;
+        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
+        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
+            (new_buffer_index, true, Some(parameter_value))
+        } else {
+            (new_buffer_index, false, None)
+        }
+    }
+
+    fn parse_raw_string_parameter(&self) -> (usize, bool, Option<&'a str>) {
+        let mut new_buffer_index = self.buffer_index;
+        // Get the end index of the current string.
+        let end = self.find_end_of_raw_string();
+        // Get the bytes in which the string should reside.
+        let string_slice = &self.buffer[new_buffer_index..(end - 1)];
+
+        // Advance the index to the character after the string.
+        new_buffer_index = end - 1usize;
+
+        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
+        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
+            (new_buffer_index, true, Some(parameter_value))
+        } else {
+            (new_buffer_index, false, None)
+        }
+    }
+
     /// Finish parsing the command and get the results
     pub fn finish(self) -> Result<D, ParseError> {
         if self.data_valid {
@@ -181,7 +267,7 @@ impl<'a, D> CommandParser<'a, D> {
 
 impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
     /// Tries reading an int parameter
-    pub fn expect_int_parameter(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_int_parameter(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -192,69 +278,30 @@ impl<'a, D: TupleConcat<i32>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_int_parameter();
-        // Get the bytes in which the int should reside.
-        let int_slice = match self.buffer.get(self.buffer_index..parameter_end) {
-            None => {
-                self.data_valid = false;
-                return CommandParser {
-                    buffer: self.buffer,
-                    buffer_index: self.buffer_index,
-                    data_valid: self.data_valid,
-                    data: self.data.tup_cat(0),
-                };
-            }
-            Some(int_slice) => int_slice,
-        };
-        if int_slice.is_empty() {
-            // We probably hit the end of the buffer.
-            // The parameter is empty so it is always invalid.
-            self.data_valid = false;
+        let (buffer_index, data_valid, data) = self.parse_int_parameter();
+        if let Some(parameter_value) = data {
             return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(0),
-            };
-        }
-
-        // Skip the leading '+'
-        let int_slice = if int_slice[0] == b'+' {
-            &int_slice[1..]
-        } else {
-            int_slice
-        };
-
-        // Parse the int
-        let parsed_int = crate::formatter::parse_int(int_slice);
-
-        // Advance the index to the character after the parameter separator (comma) if it's there.
-        self.buffer_index =
-            parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
-        // If we've found an int, then the data may be valid and we allow the closure to set the result ok data.
-        if let Some(parameter_value) = parsed_int {
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid,
                 data: self.data.tup_cat(parameter_value),
             }
+            .trim_space();
         } else {
-            self.data_valid = false;
-            CommandParser {
+            return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid: false,
                 data: self.data.tup_cat(0),
             }
+            .trim_space();
         }
-        .trim_space()
     }
 }
+
 impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
     /// Tries reading a string parameter
-    pub fn expect_string_parameter(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_string_parameter(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -265,52 +312,28 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_string_parameter();
-        if parameter_end > self.buffer.len() {
-            // We hit the end of the buffer.
-            // The parameter is empty so it is always invalid.
-            self.data_valid = false;
+        let (buffer_index, data_valid, data) = self.parse_string_parameter();
+        if let Some(parameter_value) = data {
             return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(""),
-            };
-        }
-        // Get the bytes in which the string should reside.
-        let string_slice = &self.buffer[(self.buffer_index + 1)..(parameter_end - 1)];
-
-        let has_comma_after_parameter = if let Some(next_char) = self.buffer.get(parameter_end) {
-            *next_char == b','
-        } else {
-            false
-        };
-
-        // Advance the index to the character after the parameter separator.
-        self.buffer_index = parameter_end + has_comma_after_parameter as usize;
-        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
-        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid,
                 data: self.data.tup_cat(parameter_value),
             }
+            .trim_space();
         } else {
-            self.data_valid = false;
-            CommandParser {
+            return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid: false,
                 data: self.data.tup_cat(""),
             }
+            .trim_space();
         }
-        .trim_space()
     }
 
     /// Tries reading a non-parameter, non-quoted string
-    pub fn expect_raw_string(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_raw_string(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -321,32 +344,24 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current string.
-        let end = self.find_end_of_raw_string();
-        // Get the bytes in which the string should reside.
-        let string_slice = &self.buffer[self.buffer_index..(end - 1)];
-
-        // Advance the index to the character after the string.
-        self.buffer_index = end - 1usize;
-
-        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
-        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
-            CommandParser {
+        let (buffer_index, data_valid, data) = self.parse_raw_string_parameter();
+        if let Some(parameter_value) = data {
+            return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid,
                 data: self.data.tup_cat(parameter_value),
             }
+            .trim_space();
         } else {
-            self.data_valid = false;
-            CommandParser {
+            return CommandParser {
                 buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
+                buffer_index,
+                data_valid: false,
                 data: self.data.tup_cat(""),
             }
+            .trim_space();
         }
-        .trim_space()
     }
 }
 
@@ -356,7 +371,7 @@ impl<'a, D: TupleConcat<&'a str>> CommandParser<'a, D> {
 
 impl<'a, D: TupleConcat<Option<i32>>> CommandParser<'a, D> {
     /// Tries reading an int parameter
-    pub fn expect_optional_int_parameter(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_optional_int_parameter(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -367,71 +382,20 @@ impl<'a, D: TupleConcat<Option<i32>>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_int_parameter();
-        // Get the bytes in which the int should reside.
-        let int_slice = match self.buffer.get(self.buffer_index..parameter_end) {
-            None => {
-                return CommandParser {
-                    buffer: self.buffer,
-                    buffer_index: self.buffer_index,
-                    data_valid: self.data_valid,
-                    data: self.data.tup_cat(None),
-                };
-            }
-            Some(int_slice) => int_slice,
-        };
-        if int_slice.is_empty() {
-            // We probably hit the end of the buffer.
-            // The parameter is empty but as it is optional not invalid
-            // Advance the index to the character after the parameter separator (comma) if it's there.
-            self.buffer_index =
-            parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
-            return CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(None),
-            };
+        let (buffer_index, data_valid, data) = self.parse_int_parameter();
+        return CommandParser {
+            buffer: self.buffer,
+            buffer_index,
+            data_valid,
+            data: self.data.tup_cat(data),
         }
-
-        // Skip the leading '+'
-        let int_slice = if int_slice[0] == b'+' {
-            &int_slice[1..]
-        } else {
-            int_slice
-        };
-
-        // Parse the int
-        let parsed_int = crate::formatter::parse_int(int_slice);
-
-        // Advance the index to the character after the parameter separator (comma) if it's there.
-        self.buffer_index =
-            parameter_end + (self.buffer.get(parameter_end) == Some(&b',')) as usize;
-        // If we've found an int, then the data may be valid and we allow the closure to set the result ok data.
-        if let Some(parameter_value) = parsed_int {
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(Some(parameter_value)),
-            }
-        } else {
-            self.data_valid = false;
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(None),
-            }
-        }
-        .trim_space()
+        .trim_space();
     }
 }
 
 impl<'a, D: TupleConcat<Option<&'a str>>> CommandParser<'a, D> {
     /// Tries reading a string parameter
-    pub fn expect_optional_string_parameter(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_optional_string_parameter(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -442,51 +406,18 @@ impl<'a, D: TupleConcat<Option<&'a str>>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current parameter.
-        let parameter_end = self.find_end_of_string_parameter();
-        if parameter_end > self.buffer.len() {
-            // We hit the end of the buffer.
-            // The parameter is empty but as it is optional not invalid
-            return CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(None),
-            };
+        let (buffer_index, data_valid, data) = self.parse_string_parameter();
+        return CommandParser {
+            buffer: self.buffer,
+            buffer_index,
+            data_valid,
+            data: self.data.tup_cat(data),
         }
-        // Get the bytes in which the string should reside.
-        let string_slice = &self.buffer[(self.buffer_index + 1)..(parameter_end - 1)];
-
-        let has_comma_after_parameter = if let Some(next_char) = self.buffer.get(parameter_end) {
-            *next_char == b','
-        } else {
-            false
-        };
-
-        // Advance the index to the character after the parameter separator.
-        self.buffer_index = parameter_end + has_comma_after_parameter as usize;
-        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
-        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(Some(parameter_value)),
-            }
-        } else {
-            self.data_valid = false;
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(None),
-            }
-        }
-        .trim_space()
+        .trim_space();
     }
 
     /// Tries reading a non-parameter, non-quoted string
-    pub fn expect_optional_raw_string(mut self) -> CommandParser<'a, D::Out> {
+    pub fn expect_optional_raw_string(self) -> CommandParser<'a, D::Out> {
         // If we're already not valid, then quit
         if !self.data_valid {
             return CommandParser {
@@ -497,32 +428,14 @@ impl<'a, D: TupleConcat<Option<&'a str>>> CommandParser<'a, D> {
             };
         }
 
-        // Get the end index of the current string.
-        let end = self.find_end_of_raw_string();
-        // Get the bytes in which the string should reside.
-        let string_slice = &self.buffer[self.buffer_index..(end - 1)];
-
-        // Advance the index to the character after the string.
-        self.buffer_index = end - 1usize;
-
-        // If we've found a valid string, then the data may be valid and we allow the closure to set the result ok data.
-        if let Ok(parameter_value) = core::str::from_utf8(string_slice) {
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(Some(parameter_value)),
-            }
-        } else {
-            self.data_valid = false;
-            CommandParser {
-                buffer: self.buffer,
-                buffer_index: self.buffer_index,
-                data_valid: self.data_valid,
-                data: self.data.tup_cat(None),
-            }
+        let (buffer_index, data_valid, data) = self.parse_raw_string_parameter();
+        return CommandParser {
+            buffer: self.buffer,
+            buffer_index,
+            data_valid,
+            data: self.data.tup_cat(data),
         }
-        .trim_space()
+        .trim_space();
     }
 }
 
@@ -608,7 +521,6 @@ mod tests {
         assert_eq!(x, Some(654));
         assert_eq!(y, Some("true"));
         assert_eq!(z, Some(-65154));
-        
     }
 
     #[test]
@@ -656,31 +568,29 @@ mod tests {
         assert_eq!(r, Err(ParseError(20)));
 
         let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:,\"true\"\r\nOK\r\n")
-        .expect_identifier(b"+SYSGPIOREAD:")
-        .expect_optional_int_parameter()
-        .expect_optional_string_parameter()
-        .expect_optional_int_parameter()
-        .expect_optional_identifier(b"\r\nOK\r\n")
-        .finish()
-        .unwrap();
+            .expect_identifier(b"+SYSGPIOREAD:")
+            .expect_optional_int_parameter()
+            .expect_optional_string_parameter()
+            .expect_optional_int_parameter()
+            .expect_optional_identifier(b"\r\nOK\r\n")
+            .finish()
+            .unwrap();
 
         assert_eq!(x, None);
         assert_eq!(y, Some("true"));
         assert_eq!(z, None);
 
         let (x, y, z) = CommandParser::parse(b"+SYSGPIOREAD:,\"true\"")
-        .expect_identifier(b"+SYSGPIOREAD:")
-        .expect_optional_int_parameter()
-        .expect_optional_string_parameter()
-        .expect_optional_int_parameter()
-        .expect_optional_identifier(b"\r\nOK\r\n")
-        .finish()
-        .unwrap();
+            .expect_identifier(b"+SYSGPIOREAD:")
+            .expect_optional_int_parameter()
+            .expect_optional_string_parameter()
+            .expect_optional_int_parameter()
+            .expect_optional_identifier(b"\r\nOK\r\n")
+            .finish()
+            .unwrap();
 
         assert_eq!(x, None);
         assert_eq!(y, Some("true"));
         assert_eq!(z, None);
-        
     }
-
 }
