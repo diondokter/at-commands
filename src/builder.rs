@@ -150,8 +150,8 @@ impl<'a, ANY> CommandBuilder<'a, ANY> {
 
 impl<'a, N: Nameable> CommandBuilder<'a, Initialized<N>> {
     /// Set the name of the command.
-    pub fn named(mut self, name: &str) -> CommandBuilder<'a, N> {
-        self.try_append_data(name.as_bytes());
+    pub fn named<T: AsRef<[u8]>>(mut self, name: T) -> CommandBuilder<'a, N> {
+        self.try_append_data(name.as_ref());
         self.try_append_data(N::NAME_SUFFIX);
 
         CommandBuilder::<'a, N> {
@@ -175,9 +175,9 @@ impl<'a> CommandBuilder<'a, Set> {
     }
 
     /// Add a string parameter
-    pub fn with_string_parameter(mut self, value: &str) -> Self {
+    pub fn with_string_parameter<T: AsRef<[u8]>>(mut self, value: T) -> Self {
         self.try_append_data(b"\"");
-        self.try_append_data(value.as_bytes());
+        self.try_append_data(value.as_ref());
         self.try_append_data(b"\"");
         self.try_append_data(b",");
         self
@@ -192,7 +192,7 @@ impl<'a> CommandBuilder<'a, Set> {
     }
 
     /// Add an optional string parameter.
-    pub fn with_optional_string_parameter(self, value: Option<&str>) -> Self {
+    pub fn with_optional_string_parameter<T: AsRef<[u8]>>(self, value: Option<T>) -> Self {
         match value {
             None => self.with_empty_parameter(),
             Some(value) => self.with_string_parameter(value),
