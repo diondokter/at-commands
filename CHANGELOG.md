@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 - Added optional parser parameters: [diondokter/at-commands#9](https://github.com/diondokter/at-commands/pull/9)
+- Changed &str to AsRef<[u8]> in CommandBuilder methods: [diondokter/at-commands#10](https://github.com/diondokter/at-commands/pull/10)
 
 ## [0.5.3] - 2022-09-11
 - More arguments are now supported: [diondokter/at-commands#6](https://github.com/diondokter/at-commands/pull/6)
