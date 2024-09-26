@@ -204,6 +204,13 @@ impl<'a> CommandBuilder<'a, Set> {
         self.try_append_data(b",");
         self
     }
+
+    /// Add an unformatted parameter
+    pub fn with_raw_parameter<T: AsRef<[u8]>>(mut self, value: T) -> Self {
+        self.try_append_data(value.as_ref());
+        self.try_append_data(b",");
+        self
+    }
 }
 
 impl<'a, F: Finishable> CommandBuilder<'a, F> {
@@ -453,5 +460,17 @@ mod tests {
             core::str::from_utf8(value).unwrap(),
             "AT+HTTPCLIENT=2,1,\"http://localpc/ip\",,,1\r\n"
         );
+    }
+
+    #[test]
+    fn test_raw_parameter() {
+        let mut buffer = [0; 128];
+        let value = CommandBuilder::create_set(&mut buffer, true)
+            .named("+CPIN")
+            .with_raw_parameter(b"1234")
+            .with_optional_int_parameter(Some(9))
+            .finish_with(b"\r")
+            .unwrap();
+        assert_eq!(core::str::from_utf8(value).unwrap(), "AT+CPIN=1234,9\r");
     }
 }
