@@ -1,6 +1,6 @@
 //! Crate for building and parsing AT Commands
 
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(test), no_std)]
 #![deny(missing_docs)]
 
 pub mod builder;

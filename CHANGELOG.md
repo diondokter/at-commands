@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.5.5] - 2024-09-26
+
 - Add raw parameter to command builder.
 
 ## [0.5.4] - 2023-09-18
