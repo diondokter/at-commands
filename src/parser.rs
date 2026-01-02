@@ -122,6 +122,24 @@ impl<'a, D> CommandParser<'a, D> {
         self
     }
 
+    /// Moves the internal buffer index over the next byte which is not a whitespace. The white
+    /// space is defined in [core::primitive::u8::is_ascii_whitespace]
+    pub fn trim_whitespace(mut self) -> Self {
+        // If we're already not valid, then quit
+        if !self.data_valid {
+            return self;
+        }
+
+        let white_spaces = self.buffer[self.buffer_index..]
+            .iter()
+            .take_while(|c| c.is_ascii_whitespace())
+            .count();
+
+        self.buffer_index += white_spaces;
+
+        self
+    }
+
     /// Finds the index of the character after the int parameter or the end of the data.
     fn find_end_of_int_parameter(&self) -> usize {
         self.buffer_index
@@ -749,6 +767,53 @@ mod tests {
                 .expect_raw_string_parameter()
                 .expect_int_parameter()
                 .expect_identifier(b"\r\nOK\r\n")
+                .finish()
+                .unwrap();
+
+        assert_eq!(x, 654);
+        assert_eq!(y, "true");
+        assert_eq!(raw, "123àABC");
+        assert_eq!(z, -65154);
+    }
+
+    #[test]
+    fn test_trim_whitespaces() {
+        let (x, y, raw, z) = CommandParser::parse(
+            "\r\n +SYSGPIOREAD:654,\"true\",123àABC,-65154\r\nOK\r\n".as_bytes(),
+        )
+        .trim_whitespace()
+        .expect_identifier(b"+SYSGPIOREAD:")
+        .expect_int_parameter()
+        .expect_string_parameter()
+        .expect_raw_string_parameter()
+        .expect_int_parameter()
+        .trim_whitespace()
+        .expect_identifier(b"OK\r\n")
+        .finish()
+        .unwrap();
+
+        assert_eq!(x, 654);
+        assert_eq!(y, "true");
+        assert_eq!(raw, "123àABC");
+        assert_eq!(z, -65154);
+    }
+
+    #[test]
+    fn test_trim_whitespaces_no_whitespace() {
+        let (x, y, raw, z) =
+            CommandParser::parse("+SYSGPIOREAD:654,\"true\",123àABC,-65154\r\nOK\r\n".as_bytes())
+                .trim_whitespace()
+                .expect_identifier(b"+SYSGPIOREAD:")
+                .trim_whitespace()
+                .expect_int_parameter()
+                .trim_whitespace()
+                .expect_string_parameter()
+                .trim_whitespace()
+                .expect_raw_string_parameter()
+                .trim_whitespace()
+                .expect_int_parameter()
+                .expect_identifier(b"\r\nOK\r\n")
+                .trim_whitespace()
                 .finish()
                 .unwrap();
 

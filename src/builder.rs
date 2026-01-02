@@ -212,7 +212,7 @@ impl CommandBuilder<'_, Set> {
         self
     }
 
-    /// Add the given [value] to the array using the hex format for the bytes
+    /// Add the given value to the array using the hex format for the bytes
     pub fn with_rax_hex_parameter<T: AsRef<[u8]>>(mut self, value: T) -> Self {
         for byte in value.as_ref().iter() {
             use crate::formatter::parse_byte_to_hex;
