@@ -87,14 +87,21 @@ impl<'a, D> CommandParser<'a, D> {
         }
 
         // Zip together the identifier and the buffer data. If all bytes are the same, the data is valid.
-        self.data_valid = self.buffer[self.buffer_index..]
+        let found_optional = self.buffer[self.buffer_index..]
             .iter()
             .zip(identifier)
             .all(|(buffer, id)| *buffer == *id);
-        // Advance the index
-        self.buffer_index += identifier.len();
 
-        self.trim_space()
+        if found_optional {
+            // If we found the optional advance the index
+            // Advance the index
+            self.buffer_index += identifier.len();
+
+            self.trim_space()
+        } else {
+            // If we did not find the optional just keep the index
+            self
+        }
     }
 
     /// Moves the internal buffer index over the next bit of space characters, if any
@@ -688,6 +695,29 @@ mod tests {
         assert_eq!(x, None);
         assert_eq!(y, Some("true"));
         assert_eq!(z, None);
+    }
+
+    /// On this test we will check multiple possible variables for the optional identifier
+    #[test]
+    fn test_optional_identifier_multiple_cases() {
+        const OK_1: &str = "\r\nOK";
+        const OK_2: &str = "\r\nOK\r\n";
+        const OK_3: &str = "OK\r\n";
+        const OK_4: &str = "OK";
+
+        static TEST_CASES: [&str; 4] = [OK_1, OK_2, OK_3, OK_4];
+
+        for test_case in TEST_CASES {
+            let result = CommandParser::parse(test_case.as_bytes())
+                .expect_optional_identifier(b"\r")
+                .expect_optional_identifier(b"\n")
+                .expect_identifier(b"OK")
+                .expect_optional_identifier(b"\r")
+                .expect_optional_identifier(b"\n")
+                .finish();
+
+            assert_eq!(result, Ok(()), "Failed test case: {:?}", test_case);
+        }
     }
 
     #[test]
