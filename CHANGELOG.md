@@ -3,6 +3,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## [0.5.8] - 2026-01-02
+
+- Add a trim_whitespace convenience method [diondokter/at-commands#17](https://github.com/diondokter/at-commands/pull/17)
+- Fix error on expect_optional_identifier [diondokter/at-commands#18](https://github.com/diondokter/at-commands/pull/18)
+
 ## [0.5.7] - 2025-12-29
 
 - Add write_hex function to builder [diondokter/at-commands#15](https://github.com/diondokter/at-commands/pull/15)
